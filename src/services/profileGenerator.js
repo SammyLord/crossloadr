@@ -68,7 +68,8 @@ async function generateProfilePayload(app) {
         PayloadUUID: uuidv4(),
         PayloadVersion: 1,
         PrecomposedIcon: true,
-        URL: app.url
+        URL: app.url,
+        IgnoreManifestScope: true
     };
 
     if (iconData) {
