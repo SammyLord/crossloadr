@@ -1,0 +1,36 @@
+{
+  "name": "crossloadr",
+  "version": "1.0.0",
+  "description": "A secure web app store with iOS web clip profiles",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "concurrently \"nodemon src/server.js\" \"cd frontend && npm run dev\"",
+    "test": "jest",
+    "build": "cd frontend && npm run build",
+    "install:all": "npm install && cd frontend && npm install"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "quick.db": "^9.1.7",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "node-schedule": "^2.1.1",
+    "express-validator": "^7.0.1",
+    "multer": "^1.4.5-lts.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "concurrently": "^8.2.2",
+  },
+  "type": "module"
+} 

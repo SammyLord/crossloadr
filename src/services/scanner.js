@@ -1,0 +1,200 @@
+import axios from 'axios';
+import { dbHelpers } from '../config/database.js';
+import logger from '../config/logger.js';
+
+// Security check types
+const SECURITY_CHECKS = {
+    SSL: 'ssl',
+    MALWARE: 'malware',
+    PHISHING: 'phishing',
+    VULNERABILITIES: 'vulnerabilities',
+    CONTENT_SECURITY: 'content_security'
+};
+
+// Perform security scan on a single app
+async function scanApp(app) {
+    const scanResult = {
+        appId: app.id,
+        timestamp: Date.now(),
+        checks: {},
+        status: 'pending',
+        issues: []
+    };
+
+    try {
+        // Check SSL/TLS
+        const sslCheck = await checkSSL(app.url);
+        scanResult.checks[SECURITY_CHECKS.SSL] = sslCheck;
+        if (!sslCheck.valid) {
+            scanResult.issues.push({
+                type: SECURITY_CHECKS.SSL,
+                severity: 'high',
+                message: 'SSL/TLS certificate is invalid or missing'
+            });
+        }
+
+        // Check for malware
+        const malwareCheck = await checkMalware(app.url);
+        scanResult.checks[SECURITY_CHECKS.MALWARE] = malwareCheck;
+        if (malwareCheck.detected) {
+            scanResult.issues.push({
+                type: SECURITY_CHECKS.MALWARE,
+                severity: 'critical',
+                message: 'Malware detected'
+            });
+        }
+
+        // Check for phishing
+        const phishingCheck = await checkPhishing(app.url);
+        scanResult.checks[SECURITY_CHECKS.PHISHING] = phishingCheck;
+        if (phishingCheck.detected) {
+            scanResult.issues.push({
+                type: SECURITY_CHECKS.PHISHING,
+                severity: 'critical',
+                message: 'Phishing indicators detected'
+            });
+        }
+
+        // Check for common vulnerabilities
+        const vulnCheck = await checkVulnerabilities(app.url);
+        scanResult.checks[SECURITY_CHECKS.VULNERABILITIES] = vulnCheck;
+        if (vulnCheck.vulnerabilities.length > 0) {
+            scanResult.issues.push({
+                type: SECURITY_CHECKS.VULNERABILITIES,
+                severity: 'high',
+                message: `Found ${vulnCheck.vulnerabilities.length} security vulnerabilities`
+            });
+        }
+
+        // Check Content Security Policy
+        const cspCheck = await checkContentSecurity(app.url);
+        scanResult.checks[SECURITY_CHECKS.CONTENT_SECURITY] = cspCheck;
+        if (!cspCheck.valid) {
+            scanResult.issues.push({
+                type: SECURITY_CHECKS.CONTENT_SECURITY,
+                severity: 'medium',
+                message: 'Missing or weak Content Security Policy'
+            });
+        }
+
+        // Update scan status
+        scanResult.status = scanResult.issues.length === 0 ? 'passed' : 'failed';
+
+        // Save scan result
+        await dbHelpers.addScanResult(scanResult);
+
+        // Update app status if scan failed
+        if (scanResult.status === 'failed') {
+            await dbHelpers.updateApp(app.id, {
+                status: 'suspended',
+                lastScan: scanResult.timestamp,
+                scanIssues: scanResult.issues
+            });
+        } else {
+            await dbHelpers.updateApp(app.id, {
+                status: 'active',
+                lastScan: scanResult.timestamp,
+                scanIssues: []
+            });
+        }
+
+        return scanResult;
+    } catch (error) {
+        logger.error(`Scan failed for app ${app.id}:`, error);
+        scanResult.status = 'error';
+        scanResult.error = error.message;
+        await dbHelpers.addScanResult(scanResult);
+        throw error;
+    }
+}
+
+// Scan all apps in the database
+export async function scanAllApps() {
+    const apps = await dbHelpers.getAllApps();
+    const results = [];
+
+    for (const app of apps) {
+        try {
+            const result = await scanApp(app);
+            results.push(result);
+        } catch (error) {
+            logger.error(`Failed to scan app ${app.id}:`, error);
+            results.push({
+                appId: app.id,
+                status: 'error',
+                error: error.message,
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    return results;
+}
+
+// Individual security check implementations
+async function checkSSL(url) {
+    try {
+        const response = await axios.get(url, {
+            validateStatus: () => true,
+            maxRedirects: 5
+        });
+        return {
+            valid: response.request.res.socket.encrypted,
+            protocol: response.request.res.socket.getProtocol(),
+            timestamp: Date.now()
+        };
+    } catch (error) {
+        return {
+            valid: false,
+            error: error.message,
+            timestamp: Date.now()
+        };
+    }
+}
+
+async function checkMalware(url) {
+    // Implement malware scanning logic here
+    // This is a placeholder that would typically integrate with a malware scanning service
+    return {
+        detected: false,
+        timestamp: Date.now()
+    };
+}
+
+async function checkPhishing(url) {
+    // Implement phishing detection logic here
+    // This is a placeholder that would typically integrate with a phishing detection service
+    return {
+        detected: false,
+        timestamp: Date.now()
+    };
+}
+
+async function checkVulnerabilities(url) {
+    // Implement vulnerability scanning logic here
+    // This is a placeholder that would typically integrate with a vulnerability scanning service
+    return {
+        vulnerabilities: [],
+        timestamp: Date.now()
+    };
+}
+
+async function checkContentSecurity(url) {
+    try {
+        const response = await axios.get(url);
+        const cspHeader = response.headers['content-security-policy'];
+        return {
+            valid: !!cspHeader,
+            policy: cspHeader,
+            timestamp: Date.now()
+        };
+    } catch (error) {
+        return {
+            valid: false,
+            error: error.message,
+            timestamp: Date.now()
+        };
+    }
+}
+
+export { scanApp, SECURITY_CHECKS }; 
