@@ -108,6 +108,99 @@ router.post('/apps/:id/approve', param('id').isUUID(), async (req, res) => {
     }
 });
 
+// Suspend app
+router.post('/apps/:id/suspend', authenticateAdmin, param('id').isUUID(), async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        let app = await dbHelpers.getAppById(req.params.id);
+        if (!app) {
+            return res.status(404).json({ error: 'App not found' });
+        }
+
+        // Only active apps can be suspended by this action for now
+        // (though one might want to suspend a pending app to prevent approval)
+        if (app.status !== 'active') {
+            return res.status(400).json({ error: `App is not in 'active' state (current: ${app.status}), cannot suspend.` });
+        }
+
+        const updatedApp = await dbHelpers.updateApp(req.params.id, {
+            status: 'suspended',
+            suspendedAt: Date.now(),
+            // Clear approval timestamp if it was previously active
+            approvedAt: null 
+        });
+
+        if (!updatedApp) {
+            return res.status(500).json({ error: 'Failed to update app during suspension' });
+        }
+
+        // Optionally, consider if a profile for a suspended app should be handled (e.g., deleted or marked)
+        // For now, profile remains, but won't be served if app is not 'active' by the public route.
+
+        logger.info(`App ${updatedApp.id} has been suspended.`);
+        res.json(updatedApp);
+
+    } catch (error) {
+        logger.error(`Failed to suspend app ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to suspend app' });
+    }
+});
+
+// Reactivate a suspended app
+router.post('/apps/:id/reactivate', param('id').isUUID(), async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        let app = await dbHelpers.getAppById(req.params.id);
+        if (!app) {
+            return res.status(404).json({ error: 'App not found' });
+        }
+
+        if (app.status !== 'suspended') {
+            return res.status(400).json({ error: `App is not in 'suspended' state (current: ${app.status}), cannot reactivate.` });
+        }
+
+        const updates = {
+            status: 'active',
+            // Using approvedAt for simplicity, as it signifies it's now active.
+            // Alternatively, a new field like reactivatedAt could be used.
+            approvedAt: Date.now(), 
+            suspendedAt: null,
+            rejectionReason: null // Clear any previous rejection reason if it was rejected before suspension
+        };
+
+        const updatedApp = await dbHelpers.updateApp(req.params.id, updates);
+
+        if (!updatedApp) {
+            return res.status(500).json({ error: 'Failed to update app during reactivation' });
+        }
+
+        // Re-generate profile for the now active app
+        try {
+            await generateProfile(updatedApp);
+            logger.info(`Profile regenerated for reactivated app ${updatedApp.id}`);
+        } catch (profileError) {
+            logger.error(`Failed to regenerate profile for reactivated app ${updatedApp.id}:`, profileError);
+            // Decide if this should be a fatal error for reactivation. 
+            // For now, log it and continue, the app is reactivated in DB.
+        }
+
+        logger.info(`App ${updatedApp.id} has been reactivated.`);
+        res.json(updatedApp);
+
+    } catch (error) {
+        logger.error(`Failed to reactivate app ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to reactivate app' });
+    }
+});
+
 // Reject app
 router.post('/apps/:id/reject', param('id').isUUID(), async (req, res) => {
     try {
