@@ -36,20 +36,24 @@ export async function generateProfile(app) {
 // Generate the actual profile payload
 async function generateProfilePayload(app) {
     let iconData = null;
-    let iconContentType = 'image/png';
 
     if (app.icon) {
         try {
             logger.info(`Fetching icon for profile generation: ${app.icon}`);
-            const response = await axios.get(app.icon, { responseType: 'arraybuffer' });
-            iconData = Buffer.from(response.data, 'binary').toString('base64');
+            const response = await axios.get(app.icon, { responseType: 'arraybuffer', timeout: 5000 });
+            iconData = Buffer.from(response.data);
             const fetchedContentType = response.headers['content-type'];
-            if (fetchedContentType && (fetchedContentType.startsWith('image/png') || fetchedContentType.startsWith('image/jpeg'))) {
-                iconContentType = fetchedContentType.split(';')[0];
+
+            if (iconData.length === 0) {
+                logger.warn(`Fetched icon for ${app.name} from ${app.icon} is empty (0 bytes).`);
+                iconData = null;
+            } else {
+                logger.info(`Successfully fetched icon for ${app.name}. Content-Type: ${fetchedContentType}. Size: ${iconData.length} bytes`);
             }
-            logger.info(`Successfully fetched and encoded icon for ${app.name}. Content-Type: ${iconContentType}`);
+
         } catch (iconError) {
             logger.error(`Failed to fetch or encode icon from URL ${app.icon} for app ${app.id}:`, iconError);
+            throw new Error(`Icon specified (${app.icon}) but could not be fetched/processed for app ${app.id}. Profile generation aborted.`);
         }
     }
 
@@ -63,7 +67,7 @@ async function generateProfilePayload(app) {
         PayloadType: 'com.apple.webClip.managed',
         PayloadUUID: uuidv4(),
         PayloadVersion: 1,
-        Precomposed: true,
+        PrecomposedIcon: true,
         URL: app.url
     };
 

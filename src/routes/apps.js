@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
+import plist from 'plist'; // Import the plist library
 import { dbHelpers } from '../config/database.js';
 import { scanApp } from '../services/scanner.js';
 import { generateProfile, getProfile } from '../services/profileGenerator.js';
@@ -131,14 +132,33 @@ router.get('/:id/profile', param('id').isUUID(), async (req, res) => {
             return res.status(404).json({ error: 'App not found or not available' });
         }
 
-        const profile = await getProfile(app.id);
+        // Always generate the profile on-the-fly for easier testing
+        logger.info(`[${req.method} ${req.originalUrl}] Force generating profile for app ${app.id} for testing.`);
+        let profile;
+        try {
+            profile = await generateProfile(app); // generateProfile creates and saves to DB
+            logger.info(`[${req.method} ${req.originalUrl}] Successfully generated profile on-the-fly for app ${app.id}.`);
+        } catch (generationError) {
+            logger.error(`[${req.method} ${req.originalUrl}] Failed to generate profile on-the-fly for app ${app.id}:`, generationError);
+            return res.status(500).json({ error: 'Failed to generate profile on-the-fly' });
+        }
+        
+        // The rest of the code remains the same, using the `profile` object from generateProfile
+        if (!profile || !profile.payload) { 
+            logger.error(`[${req.method} ${req.originalUrl}] Profile or payload is missing after on-the-fly generation for app ${app.id}.`);
+            return res.status(500).json({ error: 'Failed to get or generate profile payload' });
+        }
         
         res.setHeader('Content-Type', 'application/x-apple-aspen-config');
         res.setHeader('Content-Disposition', `attachment; filename="${app.name}.mobileconfig"`);
-        res.json(profile.payload);
+        const xmlPayload = plist.build(profile.payload);
+        res.send(xmlPayload);
     } catch (error) {
-        logger.error(`Failed to get profile for app ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Failed to generate profile' });
+        logger.error(`[${req.method} ${req.originalUrl}] General error in profile route for app ${req.params.id}:`, error);
+        if (res.headersSent) {
+            return res.end();
+        }
+        res.status(500).json({ error: 'Failed to process profile request' });
     }
 });
 
