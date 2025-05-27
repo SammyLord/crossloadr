@@ -24,11 +24,11 @@ interface App {
   description: string;
   icon: string;
   url: string;
-  developer: string;
+  developer: { name: string; email?: string; website?: string };
   category: string;
   status: 'active' | 'pending' | 'suspended';
   lastScan: string;
-  scanResult: {
+  scanResult?: {
     status: 'pass' | 'fail';
     vulnerabilities: string[];
   };
@@ -142,7 +142,7 @@ export default function AppCard({ app, variant = 'default' }: AppCardProps) {
               noWrap
               sx={{ mb: 0.5 }}
             >
-              {app.developer}
+              {app.developer.name}
             </Typography>
           </Box>
           {app.ageRating && (
@@ -203,13 +203,17 @@ export default function AppCard({ app, variant = 'default' }: AppCardProps) {
             </Typography>
 
             <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-              {app.scanResult.status === 'pass' ? (
+              {app.scanResult && app.scanResult.status === 'pass' ? (
                 <Tooltip title="Security Verified">
                   <SecurityIcon color="success" fontSize="small" />
                 </Tooltip>
-              ) : (
+              ) : app.scanResult && app.scanResult.status === 'fail' ? (
                 <Tooltip title="Security Issues Detected">
                   <SecurityIcon color="error" fontSize="small" />
+                </Tooltip>
+              ) : (
+                <Tooltip title="Scan status unknown">
+                  <SecurityIcon color="disabled" fontSize="small" />
                 </Tooltip>
               )}
               {app.size && (

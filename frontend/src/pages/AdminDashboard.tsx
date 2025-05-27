@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -45,7 +46,7 @@ interface App {
   };
   status: 'pending' | 'active' | 'suspended';
   lastScan: string;
-  scanResult: {
+  scanResult?: {
     status: 'pass' | 'fail';
     vulnerabilities: string[];
   };
@@ -74,6 +75,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [tabValue, setTabValue] = useState(0);
@@ -82,17 +84,43 @@ export default function AdminDashboard() {
   const [rejectReason, setRejectReason] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: apps, isLoading, error } = useQuery<App[]>({
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      console.log('AdminDashboard: No token found, navigating to login.');
+      navigate('/admin/login');
+    }
+  }, [navigate]);
+
+  const { data: apps, isLoading, error, refetch } = useQuery<App[]>({
     queryKey: ['admin-apps'],
     queryFn: async () => {
+      const token = localStorage.getItem('adminToken');
+      console.log('AdminDashboard: Attempting to fetch admin apps. Token being used:', token);
       const response = await api.get('/api/admin/apps', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          'Authorization': `Bearer ${token}`
         }
       });
+      console.log('AdminDashboard: Raw response.data from API:', response.data);
       return response.data;
     }
+    //, { staleTime: 0, cacheTime: 0 } // Optional: Uncomment for aggressive cache busting during debug
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error('AdminDashboard: useQuery error object:', error);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    console.log('AdminDashboard: apps data from useQuery (this is the `apps` variable):', apps);
+    if (apps) {
+      console.log('AdminDashboard: Count of apps from useQuery:', apps.length);
+      apps.forEach(app => console.log('AdminDashboard: App status:', app.status));
+    }
+  }, [apps]);
 
   const { mutate: approveApp, isLoading: isApproving } = useMutation({
     mutationFn: async (appId: string) => {
@@ -220,7 +248,10 @@ export default function AdminDashboard() {
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">Error loading apps. Please try again later.</Alert>
+        <Alert severity="error">
+          Error loading apps. Please try again later. (Check console for details)
+          <Button onClick={() => refetch()} sx={{ ml: 2 }} variant="outlined">Try Refetch</Button>
+        </Alert>
       </Container>
     );
   }
@@ -229,6 +260,7 @@ export default function AdminDashboard() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Admin Dashboard
+        <Button onClick={() => refetch()} sx={{ ml: 2 }} variant="contained">Force Refetch Apps (Debug)</Button>
       </Typography>
 
       <Paper sx={{ width: '100%', mb: 2 }}>
@@ -270,26 +302,42 @@ export default function AdminDashboard() {
                         {app.developer.email}
                       </Typography>
                     </TableCell>
-                    <TableCell>{new Date(app.lastScan).toLocaleDateString()}</TableCell>
+                    <TableCell>{app.lastScan ? new Date(app.lastScan).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell>
-                      <Chip
-                        label={app.scanResult.status}
-                        color={app.scanResult.status === 'pass' ? 'success' : 'error'}
-                        size="small"
-                      />
+                      {app.scanResult ? (
+                        <Chip
+                          label={app.scanResult.status}
+                          color={app.scanResult.status === 'pass' ? 'success' : 'error'}
+                          size="small"
+                        />
+                      ) : (
+                        <Chip label="Not Scanned" size="small" />
+                      )}
                     </TableCell>
                     <TableCell>
                       <IconButton
                         color="success"
-                        onClick={() => approveApp(app.id)}
-                        disabled={isApproving || app.scanResult.status === 'fail'}
+                        onClick={() => {
+                          if (app.status === 'pending') {
+                            if (!app.scanResult || app.scanResult.status === 'fail') {
+                              if (window.confirm(
+`This app has not been successfully scanned (Status: ${app.scanResult?.status || 'Unknown'}) or has scan issues. Are you sure you want to approve it?`
+                              )) {
+                                approveApp(app.id);
+                              }
+                            } else {
+                              approveApp(app.id); // Scan passed or no scan but we are allowing direct approve
+                            }
+                          }
+                        }}
+                        disabled={isApproving || app.status !== 'pending'}
                       >
                         <CheckIcon />
                       </IconButton>
                       <IconButton
                         color="error"
                         onClick={() => handleRejectClick(app)}
-                        disabled={isRejecting}
+                        disabled={isRejecting || app.status !== 'pending'}
                       >
                         <CloseIcon />
                       </IconButton>
@@ -325,11 +373,157 @@ export default function AdminDashboard() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {/* Similar table structure for active apps */}
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Developer</TableCell>
+                  <TableCell>Last Scan</TableCell>
+                  <TableCell>Scan Result</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredApps?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell>
+                      <Typography variant="subtitle1">{app.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {app.url}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{app.developer.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {app.developer.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{app.lastScan ? new Date(app.lastScan).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>
+                      {app.scanResult ? (
+                        <Chip
+                          label={app.scanResult.status}
+                          color={app.scanResult.status === 'pass' ? 'success' : 'error'}
+                          size="small"
+                        />
+                      ) : (
+                        <Chip label="Not Scanned" size="small" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        color="warning"
+                        onClick={() => { toast.info('Suspend action not yet implemented.'); }}
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                      <IconButton
+                        color="primary"
+                        onClick={() => rescanApp(app.id)}
+                        disabled={isRescanning}
+                      >
+                        <RefreshIcon />
+                      </IconButton>
+                      <IconButton
+                        color="error"
+                        onClick={() => deleteApp(app.id)}
+                        disabled={isDeleting}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={filteredApps?.length || 0}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          {/* Similar table structure for suspended apps */}
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Developer</TableCell>
+                  <TableCell>Last Scan</TableCell>
+                  <TableCell>Scan Result</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredApps?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell>
+                      <Typography variant="subtitle1">{app.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {app.url}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{app.developer.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {app.developer.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{app.lastScan ? new Date(app.lastScan).toLocaleDateString() : 'N/A'}</TableCell>
+                    <TableCell>
+                      {app.scanResult ? (
+                        <Chip
+                          label={app.scanResult.status}
+                          color={app.scanResult.status === 'pass' ? 'success' : 'error'}
+                          size="small"
+                        />
+                      ) : (
+                        <Chip label="Not Scanned" size="small" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        color="success"
+                        onClick={() => { toast.info('Reactivate action not yet implemented.'); }}
+                      >
+                        <CheckIcon />
+                      </IconButton>
+                      <IconButton
+                        color="primary"
+                        onClick={() => rescanApp(app.id)}
+                        disabled={isRescanning}
+                      >
+                        <RefreshIcon />
+                      </IconButton>
+                      <IconButton
+                        color="error"
+                        onClick={() => deleteApp(app.id)}
+                        disabled={isDeleting}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={filteredApps?.length || 0}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
         </TabPanel>
       </Paper>
 

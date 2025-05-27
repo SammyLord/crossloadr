@@ -61,6 +61,11 @@ export const dbHelpers = {
         return apps.find(app => app.id === id);
     },
 
+    async getAppsByDeveloperEmail(email) {
+        const allApps = await db.get(tables.apps) || [];
+        return allApps.filter(app => app.developerEmail === email);
+    },
+
     async addApp(app) {
         const apps = await db.get(tables.apps) || [];
         apps.push(app);
@@ -124,6 +129,16 @@ export const dbHelpers = {
     async getProfileByAppId(appId) {
         const profiles = await db.get(tables.profiles) || [];
         return profiles.find(profile => profile.appId === appId);
+    },
+
+    async deleteProfile(appId) {
+        const profiles = await db.get(tables.profiles) || [];
+        const filteredProfiles = profiles.filter(profile => profile.appId !== appId);
+        if (profiles.length === filteredProfiles.length) {
+            logger.warn(`[dbHelpers.deleteProfile] No profile found to delete for appId: ${appId}`);
+        }
+        await db.set(tables.profiles, filteredProfiles);
+        logger.info(`[dbHelpers.deleteProfile] Profiles table updated after attempting to delete profile for appId: ${appId}`);
     },
 
     // Test database connection

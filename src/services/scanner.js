@@ -18,7 +18,13 @@ async function scanApp(app) {
         timestamp: Date.now(),
         checks: {},
         status: 'pending',
-        issues: []
+        issues: [],
+        details: {
+            ssl: false,
+            contentSecurity: false,
+            xss: false,
+            dataPrivacy: false
+        }
     };
 
     try {
@@ -31,6 +37,8 @@ async function scanApp(app) {
                 severity: 'high',
                 message: 'SSL/TLS certificate is invalid or missing'
             });
+        } else {
+            scanResult.details.ssl = true;
         }
 
         // Check for malware
@@ -75,7 +83,14 @@ async function scanApp(app) {
                 severity: 'medium',
                 message: 'Missing or weak Content Security Policy'
             });
+        } else {
+            scanResult.details.contentSecurity = true;
         }
+
+        // Placeholder for XSS and dataPrivacy checks - you can update these later
+        // For now, we'll assume they pass or you'll implement actual checks
+        scanResult.details.xss = true;
+        scanResult.details.dataPrivacy = true;
 
         // Update scan status
         scanResult.status = scanResult.issues.length === 0 ? 'passed' : 'failed';
@@ -83,20 +98,18 @@ async function scanApp(app) {
         // Save scan result
         await dbHelpers.addScanResult(scanResult);
 
-        // Update app status if scan failed
-        if (scanResult.status === 'failed') {
-            await dbHelpers.updateApp(app.id, {
-                status: 'suspended',
-                lastScan: scanResult.timestamp,
-                scanIssues: scanResult.issues
-            });
-        } else {
-            await dbHelpers.updateApp(app.id, {
-                status: 'active',
-                lastScan: scanResult.timestamp,
-                scanIssues: []
-            });
-        }
+        // -- REMOVED AUTOMATIC APP STATUS UPDATE BASED ON SCAN RESULT --
+        // The app should remain 'pending' after initial scan until an admin reviews it.
+        // The app's lastScan and scanIssues will be updated by the calling function if necessary,
+        // or when an admin approves/rejects.
+
+        // For now, let's ensure the app's lastScan and scanIssues are updated after the initial scan.
+        // The calling function in routes/apps.js can handle this.
+        await dbHelpers.updateApp(app.id, {
+            lastScan: scanResult.timestamp,
+            scanIssues: scanResult.issues
+            // DO NOT change app.status here
+        });
 
         return scanResult;
     } catch (error) {

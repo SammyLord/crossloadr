@@ -44,24 +44,62 @@ router.post('/register', validateDeveloper, async (req, res) => {
     }
 });
 
-// Get developer's apps
+// Developer login
+router.post(
+    '/login',
+    [body('email').isEmail().withMessage('Valid email is required')],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        const { email } = req.body;
+        try {
+            const appsByDeveloper = await dbHelpers.getAppsByDeveloperEmail(email);
+            // We don't need to send all app data, just confirm existence for login
+            if (appsByDeveloper && appsByDeveloper.length > 0) {
+                logger.info(`Developer login successful for email: ${email}`);
+                // Could return developer details or a session token in a real app
+                res.status(200).json({ message: 'Login successful', email: email }); 
+            } else {
+                logger.info(`No apps found for developer email during login attempt: ${email}`);
+                // For now, we'll allow login even if no apps, to enable first-time app submission flow
+                // The dashboard can then show "no apps yet".
+                // Alternatively, to be stricter: return res.status(404).json({ error: 'No apps found for this email. Register by submitting an app.' });
+                res.status(200).json({ message: 'Login successful (no apps found yet)', email: email });
+            }
+        } catch (error) {
+            logger.error(`Developer login failed for ${email}:`, error);
+            res.status(500).json({ error: 'Server error during login' });
+        }
+    }
+);
+
+// Get apps for a specific developer
 router.get('/apps', async (req, res) => {
+    const developerEmail = req.query.email;
+    if (!developerEmail) {
+        return res.status(400).json({ error: 'Developer email is required as a query parameter' });
+    }
+
     try {
-        const { email } = req.query;
-        if (!email) {
-            return res.status(400).json({ error: 'Developer email is required' });
-        }
+        const apps = await dbHelpers.getAppsByDeveloperEmail(developerEmail);
+        
+        // Similar to other app-listing endpoints, we should include scan results
+        const appsWithScanResults = await Promise.all(
+            apps.map(async (app) => {
+                const latestScan = await dbHelpers.getLatestScanForApp(app.id);
+                return {
+                    ...app,
+                    scanResult: latestScan || null,
+                };
+            })
+        );
 
-        const developer = await dbHelpers.getDeveloperByEmail(email);
-        if (!developer) {
-            return res.status(404).json({ error: 'Developer not found' });
-        }
-
-        const apps = await dbHelpers.getAllApps();
-        const developerApps = apps.filter(app => app.developer === developer.id);
-        res.json(developerApps);
+        res.json(appsWithScanResults);
     } catch (error) {
-        logger.error('Failed to get developer apps:', error);
+        logger.error(`Failed to get apps for developer ${developerEmail}:`, error);
         res.status(500).json({ error: 'Failed to fetch developer apps' });
     }
 });

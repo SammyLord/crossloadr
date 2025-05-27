@@ -23,6 +23,7 @@ dotenv.config();
 
 // Create Express app
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (needed for correct client IP with rate limiting)
 const port = process.env.PORT || 3000;
 
 // Middleware
@@ -47,8 +48,8 @@ app.use(express.static(join(__dirname, '../frontend/dist')));
 
 // API routes
 app.use('/api/apps', appRoutes);
-app.use('/api/developers', developerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/developer', developerRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

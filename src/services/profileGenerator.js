@@ -105,11 +105,12 @@ export async function updateProfile(appId, updates) {
 // Delete profile for an app
 export async function deleteProfile(appId) {
     try {
+        logger.info(`[profileGenerator.deleteProfile] Attempting to delete profile for appId: ${appId}`);
         await dbHelpers.deleteProfile(appId);
-        logger.info(`Deleted profile for app ${appId}`);
+        logger.info(`[profileGenerator.deleteProfile] Successfully called dbHelpers.deleteProfile for appId: ${appId}`);
     } catch (error) {
-        logger.error(`Failed to delete profile for app ${appId}:`, error);
-        throw error;
+        logger.error(`[profileGenerator.deleteProfile] Error during profile deletion for appId ${appId}:`, error);
+        throw error; // Re-throw to be caught by the route handler
     }
 }
 

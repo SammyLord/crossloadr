@@ -13,16 +13,27 @@ const validateAppSubmission = [
     body('name').trim().notEmpty().withMessage('App name is required'),
     body('url').isURL().withMessage('Valid URL is required'),
     body('description').trim().notEmpty().withMessage('Description is required'),
-    body('developer').trim().notEmpty().withMessage('Developer name is required'),
+    body('developerName').trim().notEmpty().withMessage('Developer name is required'),
+    body('developerEmail').isEmail().withMessage('Valid developer email is required'),
     body('icon').trim().notEmpty().withMessage('App icon is required')
 ];
 
 // Get all approved apps
 router.get('/', async (req, res) => {
     try {
-        const apps = await dbHelpers.getAllApps();
-        const approvedApps = apps.filter(app => app.status === 'active');
-        res.json(approvedApps);
+        const allApps = await dbHelpers.getAllApps();
+        const activeApps = allApps.filter(app => app.status === 'active');
+
+        const appsWithScanResults = await Promise.all(
+            activeApps.map(async (app) => {
+                const latestScan = await dbHelpers.getLatestScanForApp(app.id);
+                return {
+                    ...app,
+                    scanResult: latestScan || null // Ensure scanResult is null if no scan found
+                };
+            })
+        );
+        res.json(appsWithScanResults);
     } catch (error) {
         logger.error('Failed to get apps:', error);
         res.status(500).json({ error: 'Failed to fetch apps' });
@@ -46,7 +57,11 @@ router.get('/:id', param('id').isUUID(), async (req, res) => {
             return res.status(403).json({ error: 'App is not available' });
         }
 
-        res.json(app);
+        const latestScan = await dbHelpers.getLatestScanForApp(app.id);
+        res.json({
+            ...app,
+            scanResult: latestScan || null // Add scanResult here
+        });
     } catch (error) {
         logger.error(`Failed to get app ${req.params.id}:`, error);
         res.status(500).json({ error: 'Failed to fetch app details' });
@@ -61,29 +76,44 @@ router.post('/', validateAppSubmission, async (req, res) => {
             return res.status(400).json({ errors: errors.array() });
         }
 
+        logger.info('[POST /api/apps] Received submission data:', req.body);
+        const { developerName, developerEmail, ...otherAppData } = req.body;
+
         const app = {
             id: uuidv4(),
-            ...req.body,
+            ...otherAppData,
+            developer: {
+                name: developerName,
+                email: developerEmail
+            },
+            developerEmail: developerEmail,
             status: 'pending',
             submittedAt: Date.now(),
             lastScan: null,
             scanIssues: []
         };
 
+        logger.info('[POST /api/apps] App object before addApp:', JSON.stringify(app));
+
         // Save app
-        await dbHelpers.addApp(app);
+        const savedApp = await dbHelpers.addApp(app);
+        logger.info('[POST /api/apps] App object after addApp (from dbHelpers):', JSON.stringify(savedApp));
 
         // Perform initial security scan
-        const scanResult = await scanApp(app);
+        logger.info(`[POST /api/apps] App status before scanApp: ${savedApp.status}`);
+        const scanResult = await scanApp(savedApp);
+        logger.info(`[POST /api/apps] App status after scanApp (scanResult status: ${scanResult?.status}): ${savedApp.status}`);
 
         // If scan passes, generate profile
         if (scanResult.status === 'passed') {
-            await generateProfile(app);
+            logger.info(`[POST /api/apps] App status before generateProfile: ${savedApp.status}`);
+            await generateProfile(savedApp);
+            logger.info(`[POST /api/apps] App status after generateProfile: ${savedApp.status}`);
         }
-
-        res.status(201).json(app);
+        
+        res.status(201).json(savedApp);
     } catch (error) {
-        logger.error('Failed to submit app:', error);
+        logger.error('[POST /api/apps] Failed to submit app:', error);
         res.status(500).json({ error: 'Failed to submit app' });
     }
 });

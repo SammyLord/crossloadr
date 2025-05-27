@@ -9,8 +9,10 @@ const router = express.Router();
 
 // Admin authentication middleware (placeholder - implement proper auth)
 const authenticateAdmin = (req, res, next) => {
-    const adminToken = req.headers['x-admin-token'];
-    if (!adminToken || adminToken !== process.env.ADMIN_TOKEN) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Extract token from "Bearer TOKEN_STRING"
+
+    if (!token || token !== process.env.ADMIN_TOKEN) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     next();
@@ -22,8 +24,17 @@ router.use(authenticateAdmin);
 // Get all apps (including pending and suspended)
 router.get('/apps', async (req, res) => {
     try {
-        const apps = await dbHelpers.getAllApps();
-        res.json(apps);
+        const allApps = await dbHelpers.getAllApps();
+        const appsWithScanResults = await Promise.all(
+            allApps.map(async (app) => {
+                const latestScan = await dbHelpers.getLatestScanForApp(app.id);
+                return {
+                    ...app,
+                    scanResult: latestScan || null // Ensure scanResult is null if no scan found, not undefined
+                };
+            })
+        );
+        res.json(appsWithScanResults);
     } catch (error) {
         logger.error('Failed to get all apps:', error);
         res.status(500).json({ error: 'Failed to fetch apps' });
@@ -63,33 +74,34 @@ router.post('/apps/:id/approve', param('id').isUUID(), async (req, res) => {
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const app = await dbHelpers.getAppById(req.params.id);
+        let app = await dbHelpers.getAppById(req.params.id);
         if (!app) {
             return res.status(404).json({ error: 'App not found' });
         }
 
-        // Perform security scan
-        const scanResult = await scanApp(app);
-
-        if (scanResult.status === 'passed') {
-            // Update app status
-            const updatedApp = await dbHelpers.updateApp(req.params.id, {
-                status: 'active',
-                approvedAt: Date.now(),
-                lastScan: scanResult.timestamp,
-                scanIssues: []
-            });
-
-            // Generate profile
-            await generateProfile(updatedApp);
-
-            res.json(updatedApp);
-        } else {
-            res.status(400).json({
-                error: 'App failed security scan',
-                scanResult
-            });
+        if (app.status !== 'pending') {
+            return res.status(400).json({ error: 'App is not in pending state and cannot be approved.' });
         }
+
+        // App is pending, proceed to make it active
+        const updatedApp = await dbHelpers.updateApp(req.params.id, {
+            status: 'active',
+            approvedAt: Date.now(),
+            // lastScan and scanIssues are already set from the initial scan
+            // or can be updated via a separate rescan action.
+        });
+
+        if (!updatedApp) {
+            // Should not happen if getAppById found it, but as a safeguard
+            return res.status(500).json({ error: 'Failed to update app during approval' });
+        }
+
+        // Generate profile for the now active app
+        // Ensure generateProfile uses the latest app data, especially if it needs icon/url
+        await generateProfile(updatedApp);
+
+        res.json(updatedApp);
+
     } catch (error) {
         logger.error(`Failed to approve app ${req.params.id}:`, error);
         res.status(500).json({ error: 'Failed to approve app' });

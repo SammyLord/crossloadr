@@ -57,18 +57,18 @@ interface AppDetails {
   description: string;
   icon: string;
   url: string;
-  developer: string;
+  developer: { name: string; email: string; };
   category: string;
   status: 'active' | 'pending' | 'suspended';
   lastScan: string;
-  scanResult: {
+  scanResult?: {
     status: 'pass' | 'fail';
     vulnerabilities: string[];
-    details: {
-      ssl: boolean;
-      contentSecurity: boolean;
-      xss: boolean;
-      dataPrivacy: boolean;
+    details?: {
+      ssl?: boolean;
+      contentSecurity?: boolean;
+      xss?: boolean;
+      dataPrivacy?: boolean;
     };
   };
   rating?: number;
@@ -85,7 +85,6 @@ interface AppDetails {
   privacyPolicy?: string;
   supportUrl?: string;
   developerWebsite?: string;
-  developerEmail?: string;
 }
 
 interface TabPanelProps {
@@ -196,7 +195,7 @@ export default function AppDetails() {
                   {app.name}
                 </Typography>
                 <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                  {app.developer}
+                  {app.developer.name}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                   {app.category && (
@@ -337,7 +336,7 @@ export default function AppDetails() {
                     primary="Developer"
                     secondary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography component="span">{app.developer}</Typography>
+                        <Typography component="span">{app.developer.name}</Typography>
                         {app.developerWebsite && (
                           <Button
                             href={app.developerWebsite}
@@ -390,12 +389,12 @@ export default function AppDetails() {
               <Paper sx={{ p: 3, mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                   <SecurityIcon
-                    color={app.scanResult.status === 'pass' ? 'success' : 'error'}
+                    color={app.scanResult?.status === 'pass' ? 'success' : 'error'}
                     sx={{ fontSize: 40 }}
                   />
                   <Box>
                     <Typography variant="h6">
-                      Security Status: {app.scanResult.status === 'pass' ? 'Verified' : 'Issues Found'}
+                      Security Status: {app.scanResult?.status === 'pass' ? 'Verified' : 'Issues Found'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Last scanned: {new Date(app.lastScan).toLocaleDateString()}
@@ -406,7 +405,7 @@ export default function AppDetails() {
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
                     <Alert
-                      severity={app.scanResult.details.ssl ? 'success' : 'error'}
+                      severity={app.scanResult?.details?.ssl ? 'success' : 'error'}
                       sx={{ mb: 1 }}
                     >
                       SSL Certificate
@@ -414,7 +413,7 @@ export default function AppDetails() {
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Alert
-                      severity={app.scanResult.details.contentSecurity ? 'success' : 'error'}
+                      severity={app.scanResult?.details?.contentSecurity ? 'success' : 'error'}
                       sx={{ mb: 1 }}
                     >
                       Content Security
@@ -422,7 +421,7 @@ export default function AppDetails() {
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Alert
-                      severity={app.scanResult.details.xss ? 'success' : 'error'}
+                      severity={app.scanResult?.details?.xss ? 'success' : 'error'}
                       sx={{ mb: 1 }}
                     >
                       XSS Protection
@@ -430,7 +429,7 @@ export default function AppDetails() {
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Alert
-                      severity={app.scanResult.details.dataPrivacy ? 'success' : 'error'}
+                      severity={app.scanResult?.details?.dataPrivacy ? 'success' : 'error'}
                       sx={{ mb: 1 }}
                     >
                       Data Privacy
@@ -438,7 +437,7 @@ export default function AppDetails() {
                   </Grid>
                 </Grid>
 
-                {app.scanResult.vulnerabilities.length > 0 && (
+                {app.scanResult && app.scanResult.vulnerabilities && app.scanResult.vulnerabilities.length > 0 && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle1" gutterBottom>
                       Security Issues:

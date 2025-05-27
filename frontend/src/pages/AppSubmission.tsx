@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -29,37 +29,43 @@ const categories = [
 
 const steps = ['App Details', 'Developer Info', 'Review & Submit'];
 
-interface AppSubmission {
+interface AppSubmissionDataForApi {
   name: string;
   description: string;
   url: string;
   icon: string;
   category: string;
-  developer: {
-    name: string;
-    email: string;
-    website?: string;
-  };
+  developerName: string;
+  developerEmail: string;
+  developerWebsite?: string;
 }
 
 export default function AppSubmission() {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
-  const [formData, setFormData] = useState<AppSubmission>({
+  const [formData, setFormData] = useState<AppSubmissionDataForApi>({
     name: '',
     description: '',
     url: '',
     icon: '',
     category: '',
-    developer: {
-      name: '',
-      email: '',
-      website: ''
-    }
+    developerName: '',
+    developerEmail: '',
+    developerWebsite: ''
   });
 
+  useEffect(() => {
+    const loggedInDeveloperEmail = localStorage.getItem('developerEmail');
+    if (loggedInDeveloperEmail) {
+      setFormData((prev) => ({
+        ...prev,
+        developerEmail: loggedInDeveloperEmail,
+      }));
+    }
+  }, []);
+
   const { mutate: submitApp, isLoading } = useMutation({
-    mutationFn: async (data: AppSubmission) => {
+    mutationFn: async (data: AppSubmissionDataForApi) => {
       const response = await api.post('/api/apps', data);
       return response.data;
     },
@@ -86,21 +92,10 @@ export default function AppSubmission() {
   };
 
   const handleChange = (field: string, value: string) => {
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.');
-      setFormData((prev) => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof AppSubmission],
-          [child]: value
-        }
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value
-      }));
-    }
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const renderStepContent = (step: number) => {
@@ -175,8 +170,8 @@ export default function AppSubmission() {
                 required
                 fullWidth
                 label="Developer Name"
-                value={formData.developer.name}
-                onChange={(e) => handleChange('developer.name', e.target.value)}
+                value={formData.developerName}
+                onChange={(e) => handleChange('developerName', e.target.value)}
               />
             </Grid>
             <Grid item xs={12}>
@@ -185,16 +180,20 @@ export default function AppSubmission() {
                 fullWidth
                 type="email"
                 label="Developer Email"
-                value={formData.developer.email}
-                onChange={(e) => handleChange('developer.email', e.target.value)}
+                value={formData.developerEmail}
+                onChange={(e) => handleChange('developerEmail', e.target.value)}
+                InputProps={{
+                  readOnly: !!localStorage.getItem('developerEmail'),
+                }}
+                helperText={localStorage.getItem('developerEmail') ? "Email pre-filled from your login session." : "This email will be used for communication."}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Developer Website"
-                value={formData.developer.website}
-                onChange={(e) => handleChange('developer.website', e.target.value)}
+                value={formData.developerWebsite}
+                onChange={(e) => handleChange('developerWebsite', e.target.value)}
                 helperText="Optional"
               />
             </Grid>
@@ -218,10 +217,10 @@ export default function AppSubmission() {
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="h6">Developer Information</Typography>
-                <Typography><strong>Name:</strong> {formData.developer.name}</Typography>
-                <Typography><strong>Email:</strong> {formData.developer.email}</Typography>
-                {formData.developer.website && (
-                  <Typography><strong>Website:</strong> {formData.developer.website}</Typography>
+                <Typography><strong>Name:</strong> {formData.developerName}</Typography>
+                <Typography><strong>Email:</strong> {formData.developerEmail}</Typography>
+                {formData.developerWebsite && (
+                  <Typography><strong>Website:</strong> {formData.developerWebsite}</Typography>
                 )}
               </Grid>
             </Grid>
