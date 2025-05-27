@@ -111,4 +111,16 @@ export async function deleteProfile(appId) {
         logger.error(`Failed to delete profile for app ${appId}:`, error);
         throw error;
     }
+}
+
+// Initialize the profile generator service
+export async function setupProfileGenerator() {
+    try {
+        // Verify database connection
+        await dbHelpers.testConnection();
+        logger.info('Profile generator service initialized successfully');
+    } catch (error) {
+        logger.error('Failed to initialize profile generator service:', error);
+        throw error;
+    }
 } 

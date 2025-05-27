@@ -1,17 +1,19 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { rateLimit } from 'express-rate-limit';
 import schedule from 'node-schedule';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { setupDatabase } from './config/database.js';
-import { setupLogger } from './config/logger.js';
-import { scanAllApps } from './services/scanner.js';
+import logger from './config/logger.js';
 import appRoutes from './routes/apps.js';
 import developerRoutes from './routes/developer.js';
 import adminRoutes from './routes/admin.js';
+import { setupScanner } from './services/scanner.js';
+import { setupProfileGenerator } from './services/profileGenerator.js';
+import { scanAllApps } from './services/scanner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,17 +21,19 @@ const __dirname = dirname(__filename);
 // Load environment variables
 dotenv.config();
 
-// Initialize logger
-const logger = setupLogger();
-
 // Create Express app
 const app = express();
+const port = process.env.PORT || 3000;
 
-// Security middleware
-app.use(helmet());
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan('combined', {
+    stream: {
+        write: (message) => logger.info(message.trim())
+    }
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -39,11 +43,11 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Static files
-app.use(express.static(join(__dirname, '../public')));
+app.use(express.static(join(__dirname, '../frontend/dist')));
 
 // API routes
 app.use('/api/apps', appRoutes);
-app.use('/api/developer', developerRoutes);
+app.use('/api/developers', developerRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
@@ -55,23 +59,42 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Initialize database
-setupDatabase();
-
-// Schedule regular security scans
-const scanInterval = process.env.SCAN_INTERVAL_DAYS || 120;
-schedule.scheduleJob(`0 0 */${scanInterval} * *`, async () => {
-    logger.info('Starting scheduled security scan of all apps');
+// Initialize services
+async function initializeServices() {
     try {
-        await scanAllApps();
-        logger.info('Scheduled security scan completed successfully');
-    } catch (error) {
-        logger.error('Scheduled security scan failed:', error);
-    }
-});
+        // Initialize database
+        await setupDatabase();
+        logger.info('Database initialized');
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    logger.info(`Server is running on port ${PORT}`);
-}); 
+        // Initialize scanner
+        await setupScanner();
+        logger.info('Security scanner initialized');
+
+        // Initialize profile generator
+        await setupProfileGenerator();
+        logger.info('Profile generator initialized');
+
+        // Schedule regular security scans
+        const scanInterval = process.env.SCAN_INTERVAL_DAYS || 120;
+        schedule.scheduleJob(`0 0 */${scanInterval} * *`, async () => {
+            logger.info('Starting scheduled security scan of all apps');
+            try {
+                await scanAllApps();
+                logger.info('Scheduled security scan completed successfully');
+            } catch (error) {
+                logger.error('Scheduled security scan failed:', error);
+            }
+        });
+
+        // Start server
+        app.listen(port, () => {
+            logger.info(`Server running on port ${port}`);
+        });
+    } catch (error) {
+        logger.error('Failed to initialize services:', error);
+        process.exit(1);
+    }
+}
+
+// Start the server
+initializeServices(); 

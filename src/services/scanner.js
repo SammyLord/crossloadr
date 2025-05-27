@@ -197,4 +197,16 @@ async function checkContentSecurity(url) {
     }
 }
 
-export { scanApp, SECURITY_CHECKS }; 
+export { scanApp, SECURITY_CHECKS };
+
+// Initialize the scanner service
+export async function setupScanner() {
+    try {
+        // Verify database connection
+        await dbHelpers.testConnection();
+        logger.info('Scanner service initialized successfully');
+    } catch (error) {
+        logger.error('Failed to initialize scanner service:', error);
+        throw error;
+    }
+} 

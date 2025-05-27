@@ -1,11 +1,10 @@
 import { QuickDB } from 'quick.db';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { setupLogger } from './logger.js';
+import logger from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const logger = setupLogger();
 
 // Initialize database
 const db = new QuickDB({
@@ -125,6 +124,16 @@ export const dbHelpers = {
     async getProfileByAppId(appId) {
         const profiles = await db.get(tables.profiles) || [];
         return profiles.find(profile => profile.appId === appId);
+    },
+
+    // Test database connection
+    async testConnection() {
+        try {
+            await db.get(tables.apps);
+            return true;
+        } catch (error) {
+            throw new Error('Database connection failed: ' + error.message);
+        }
     }
 };
 
