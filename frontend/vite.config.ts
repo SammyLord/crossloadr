@@ -10,7 +10,8 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true
       }
-    }
+    },
+    allowedHosts: ['localhost', '127.0.0.1', '0.0.0.0', "crossloadr.nodemixaholic.com"]
   },
   resolve: {
     alias: {
