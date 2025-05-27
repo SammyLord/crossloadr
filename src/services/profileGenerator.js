@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 import { dbHelpers } from '../config/database.js';
 import logger from '../config/logger.js';
 
@@ -6,6 +7,11 @@ import logger from '../config/logger.js';
 export async function generateProfile(app) {
     try {
         const profileId = uuidv4();
+        const payload = await generateProfilePayload(app);
+        if (!payload) {
+            throw new Error('Failed to generate profile payload, possibly due to icon fetching issue.');
+        }
+
         const profile = {
             id: profileId,
             appId: app.id,
@@ -13,7 +19,7 @@ export async function generateProfile(app) {
             url: app.url,
             icon: app.icon,
             timestamp: Date.now(),
-            payload: generateProfilePayload(app)
+            payload: payload
         };
 
         // Save profile to database
@@ -28,28 +34,48 @@ export async function generateProfile(app) {
 }
 
 // Generate the actual profile payload
-function generateProfilePayload(app) {
+async function generateProfilePayload(app) {
+    let iconData = null;
+    let iconContentType = 'image/png';
+
+    if (app.icon) {
+        try {
+            logger.info(`Fetching icon for profile generation: ${app.icon}`);
+            const response = await axios.get(app.icon, { responseType: 'arraybuffer' });
+            iconData = Buffer.from(response.data, 'binary').toString('base64');
+            const fetchedContentType = response.headers['content-type'];
+            if (fetchedContentType && (fetchedContentType.startsWith('image/png') || fetchedContentType.startsWith('image/jpeg'))) {
+                iconContentType = fetchedContentType.split(';')[0];
+            }
+            logger.info(`Successfully fetched and encoded icon for ${app.name}. Content-Type: ${iconContentType}`);
+        } catch (iconError) {
+            logger.error(`Failed to fetch or encode icon from URL ${app.icon} for app ${app.id}:`, iconError);
+        }
+    }
+
+    const payloadContent = {
+        FullScreen: true,
+        IsRemovable: true,
+        Label: app.name,
+        PayloadDescription: `Configures web clip for ${app.name}`,
+        PayloadDisplayName: `${app.name} Web Clip`,
+        PayloadIdentifier: `com.crossloadr.webclip.${app.id}.${uuidv4()}`,
+        PayloadType: 'com.apple.webClip.managed',
+        PayloadUUID: uuidv4(),
+        PayloadVersion: 1,
+        Precomposed: true,
+        URL: app.url
+    };
+
+    if (iconData) {
+        payloadContent.Icon = iconData;
+    }
+
     const payload = {
-        PayloadContent: [{
-            FullScreen: true,
-            Icon: {
-                Data: app.icon,
-                ContentType: 'image/png'
-            },
-            IsRemovable: true,
-            Label: app.name,
-            PayloadDescription: `Configures web clip for ${app.name}`,
-            PayloadDisplayName: `${app.name} Web Clip`,
-            PayloadIdentifier: `com.crossloadr.webclip.${app.id}`,
-            PayloadType: 'com.apple.webClip.managed',
-            PayloadUUID: uuidv4(),
-            PayloadVersion: 1,
-            Precomposed: true,
-            URL: app.url
-        }],
+        PayloadContent: [payloadContent],
         PayloadDescription: `Web clip profile for ${app.name}`,
         PayloadDisplayName: `${app.name} Web Clip Profile`,
-        PayloadIdentifier: `com.crossloadr.profile.${app.id}`,
+        PayloadIdentifier: `com.crossloadr.profile.${app.id}.${uuidv4()}`,
         PayloadOrganization: 'CrossLoadr',
         PayloadRemovalDisallowed: false,
         PayloadType: 'Configuration',
@@ -77,25 +103,42 @@ export async function getProfile(appId) {
 // Update profile for an app
 export async function updateProfile(appId, updates) {
     try {
-        const profile = await dbHelpers.getProfileByAppId(appId);
-        if (!profile) {
-            throw new Error(`No profile found for app ${appId}`);
+        const appFromDb = await dbHelpers.getAppById(appId);
+        if (!appFromDb) {
+            throw new Error(`App ${appId} not found, cannot update profile.`);
         }
 
-        const updatedProfile = {
-            ...profile,
-            ...updates,
-            payload: generateProfilePayload({
-                ...profile,
-                ...updates
-            }),
-            timestamp: Date.now()
+        const appDataForPayload = {
+            id: appFromDb.id,
+            name: updates.name || appFromDb.name,
+            url: updates.url || appFromDb.url,
+            icon: updates.icon || appFromDb.icon,
         };
 
-        await dbHelpers.updateProfile(appId, updatedProfile);
+        const newPayload = await generateProfilePayload(appDataForPayload);
+        if (!newPayload) {
+            throw new Error('Failed to generate updated profile payload.');
+        }
+
+        const profile = await dbHelpers.getProfileByAppId(appId);
+        if (!profile) {
+            logger.warn(`No existing profile found for app ${appId} during update. A new one might be created by addProfile if dbHelpers.updateProfile allows upsert.`);
+        }
+
+        const updatedProfileData = {
+            ...(profile || {}),
+            appId: appId,
+            displayName: appDataForPayload.name,
+            url: appDataForPayload.url,
+            icon: appDataForPayload.icon,
+            payload: newPayload,
+            timestamp: Date.now(),
+        };
+
+        await dbHelpers.updateProfile(appId, updatedProfileData);
         logger.info(`Updated profile for app ${appId}`);
 
-        return updatedProfile;
+        return updatedProfileData;
     } catch (error) {
         logger.error(`Failed to update profile for app ${appId}:`, error);
         throw error;

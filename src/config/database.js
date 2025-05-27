@@ -141,6 +141,26 @@ export const dbHelpers = {
         logger.info(`[dbHelpers.deleteProfile] Profiles table updated after attempting to delete profile for appId: ${appId}`);
     },
 
+    async updateProfile(appId, updates) {
+        const profiles = await db.get(tables.profiles) || [];
+        const index = profiles.findIndex(profile => profile.appId === appId);
+        if (index !== -1) {
+            // Update existing profile
+            profiles[index] = { ...profiles[index], ...updates, appId: appId }; // Ensure appId is maintained
+        } else {
+            // Add new profile if not found (upsert behavior)
+            // Ensure the updates object is a complete profile structure if adding new
+            // For safety, ensure essential fields like id (profile's own id, not appId) are present if creating new.
+            // The calling function in profileGenerator.js should provide a full `updatedProfileData`.
+            logger.info(`[dbHelpers.updateProfile] No existing profile for appId ${appId}. Creating new one.`);
+            profiles.push({ ...updates, appId: appId }); 
+        }
+        await db.set(tables.profiles, profiles);
+        logger.info(`[dbHelpers.updateProfile] Profile for appId ${appId} updated/created.`);
+        // Return the updated/created profile from the array
+        return profiles.find(profile => profile.appId === appId);
+    },
+
     // Test database connection
     async testConnection() {
         try {
