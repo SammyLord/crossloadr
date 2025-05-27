@@ -16,7 +16,7 @@ import {
   StepLabel
 } from '@mui/material';
 import { useMutation } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../api';
 import { toast } from 'react-toastify';
 
 const categories = [
@@ -60,7 +60,7 @@ export default function AppSubmission() {
 
   const { mutate: submitApp, isLoading } = useMutation({
     mutationFn: async (data: AppSubmission) => {
-      const response = await axios.post('/api/apps', data);
+      const response = await api.post('/api/apps', data);
       return response.data;
     },
     onSuccess: () => {

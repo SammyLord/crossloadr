@@ -42,7 +42,7 @@ import {
   StarHalf as StarHalfIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../api';
 import { toast } from 'react-toastify';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, FreeMode } from 'swiper/modules';
@@ -125,7 +125,7 @@ export default function AppDetails() {
   const { data: app, isLoading, error } = useQuery<AppDetails>({
     queryKey: ['app', id],
     queryFn: async () => {
-      const response = await axios.get(`/api/apps/${id}`);
+      const response = await api.get(`/api/apps/${id}`);
       return response.data;
     }
   });

@@ -18,7 +18,7 @@ import {
   ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../api';
 import AppCard from '../components/AppCard';
 import AppStoreFilters from '../components/AppStoreFilters';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -66,7 +66,7 @@ export default function AppStore() {
   const { data: apps, isLoading, error } = useQuery<App[]>({
     queryKey: ['apps'],
     queryFn: async () => {
-      const response = await axios.get('/api/apps');
+      const response = await api.get('/api/apps');
       return response.data;
     }
   });

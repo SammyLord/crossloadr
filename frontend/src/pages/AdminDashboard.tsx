@@ -31,7 +31,7 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../api';
 import { toast } from 'react-toastify';
 
 interface App {
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
   const { data: apps, isLoading, error } = useQuery<App[]>({
     queryKey: ['admin-apps'],
     queryFn: async () => {
-      const response = await axios.get('/api/admin/apps', {
+      const response = await api.get('/api/admin/apps', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
@@ -96,7 +96,7 @@ export default function AdminDashboard() {
 
   const { mutate: approveApp, isLoading: isApproving } = useMutation({
     mutationFn: async (appId: string) => {
-      const response = await axios.post(`/api/admin/apps/${appId}/approve`, {}, {
+      const response = await api.post(`/api/admin/apps/${appId}/approve`, {}, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
 
   const { mutate: rejectApp, isLoading: isRejecting } = useMutation({
     mutationFn: async ({ appId, reason }: { appId: string; reason: string }) => {
-      const response = await axios.post(`/api/admin/apps/${appId}/reject`, { reason }, {
+      const response = await api.post(`/api/admin/apps/${appId}/reject`, { reason }, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
 
   const { mutate: deleteApp, isLoading: isDeleting } = useMutation({
     mutationFn: async (appId: string) => {
-      const response = await axios.delete(`/api/admin/apps/${appId}`, {
+      const response = await api.delete(`/api/admin/apps/${appId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
 
   const { mutate: rescanApp, isLoading: isRescanning } = useMutation({
     mutationFn: async (appId: string) => {
-      const response = await axios.post(`/api/admin/apps/${appId}/scan`, {}, {
+      const response = await api.post(`/api/admin/apps/${appId}/scan`, {}, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
