@@ -6,7 +6,8 @@ A modern web app store that provides iOS web clip profiles for web applications.
 
 - Web app submission and management
 - Automatic security scanning
-- iOS web clip profile generation
+- iOS web clip profile generation (with improved PWA fullscreen experience via `IgnoreManifestScope: true`)
+- App lifecycle management: Approve, Reject, Suspend, and Reactivate applications
 - Regular vulnerability checks (every 120 days)
 - Developer dashboard
 - Modern, responsive UI
@@ -54,9 +55,9 @@ The application will be available at `http://localhost:3000`
 ## API Endpoints
 
 ### Public Endpoints
-- `GET /api/apps` - List all approved web apps
-- `GET /api/apps/:id` - Get details of a specific web app
-- `GET /api/apps/:id/profile` - Download iOS web clip profile
+- `GET /api/apps` - List all approved web apps (response includes `scanResult`)
+- `GET /api/apps/:id` - Get details of a specific web app (response includes `scanResult`)
+- `GET /api/apps/:id/profile` - Download iOS web clip profile (always generated on-the-fly)
 
 ### Developer Endpoints
 - `POST /api/apps` - Submit a new web app
@@ -64,9 +65,14 @@ The application will be available at `http://localhost:3000`
 - `PUT /api/apps/:id` - Update web app details
 
 ### Admin Endpoints
-- `GET /api/admin/apps` - List all web apps (including pending)
-- `POST /api/admin/apps/:id/approve` - Approve a web app
-- `DELETE /api/admin/apps/:id` - Remove a web app
+(Require `Authorization: Bearer <ADMIN_TOKEN>` header)
+- `GET /api/admin/apps` - List all web apps, including pending (response includes `scanResult` for each app)
+- `POST /api/admin/apps/:id/approve` - Approve a web app (does not re-scan; generates profile)
+- `POST /api/admin/apps/:id/reject` - Reject a web app
+- `POST /api/admin/apps/:id/suspend` - Suspend an active app (removes from public store)
+- `POST /api/admin/apps/:id/reactivate` - Reactivate a suspended app (adds to public store, re-generates profile)
+- `POST /api/admin/apps/:id/scan` - Trigger a rescan of an app
+- `DELETE /api/admin/apps/:id` - Remove a web app and its profile
 
 ## Contributing
 

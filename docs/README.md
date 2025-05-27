@@ -5,8 +5,8 @@ Crossloadr is a secure web app store platform that allows users to install web a
 ## Documentation Sections
 
 1. [Getting Started](./getting-started.md) - Installation and initial setup
-2. [Server Management](./server-management.md) - Running and maintaining the server
-3. [App Store Management](./app-store-management.md) - Managing the app store and submissions
+2. [Server Management](./server-management.md) - Running and maintaining the server, including API details and backend system notes.
+3. [App Store Management](./app-store-management.md) - Managing the app store, submissions, admin panel features (including suspend/reactivate), and PWA experience notes.
 4. [Security](./security.md) - Security features and best practices
 5. [API Reference](./api-reference.md) - API documentation for developers
 6. [Troubleshooting](./troubleshooting.md) - Common issues and solutions

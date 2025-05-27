@@ -142,6 +142,54 @@ touch logs/combined.log
    - Investigate and address vulnerabilities
    - Update security policies if needed
 
+### API Details & Behavior Notes
+
+This section details important API behaviors and recent changes. For a full API reference, see [API Reference](./api-reference.md).
+
+**Admin Authentication:**
+- All admin routes under `/api/admin/*` now require a Bearer token in the `Authorization` header (e.g., `Authorization: Bearer <YOUR_ADMIN_TOKEN>`). The previous `x-admin-token` header is deprecated.
+
+**Key API Endpoint Changes & Additions:**
+
+- **`GET /api/admin/apps` (List all apps for admin):**
+  - The response for each app object now includes a `scanResult` field (contains latest scan info like `{ status: 'pass' | 'fail', details: {...} }` or `null`).
+
+- **`POST /api/admin/apps/:id/approve` (Approve an app):**
+  - This endpoint no longer re-scans the app upon approval. It primarily changes status to 'active' and generates the mobileconfig.
+
+- **`GET /api/apps` (List active apps for public store):**
+  - Each app object in the response now includes a `scanResult` field.
+
+- **`GET /api/apps/:id` (Get public app details):**
+  - The app object response includes `scanResult`, which may contain a `details` field (e.g., `scanResult.details`).
+
+- **`GET /api/apps/:id/profile` (Download mobileconfig profile):**
+  - **Always on-the-fly generation:** This endpoint now *always* generates the `.mobileconfig` profile when requested for an active app, ensuring the latest app configuration.
+  - **Stricter icon fetching:** If an `app.icon` URL is provided, fetching/processing this icon is critical. Failures (timeout, non-existent image) will error out profile generation.
+
+- **NEW: `POST /api/admin/apps/:id/suspend` (Suspend an app):**
+  - **Action:** Changes app status to 'suspended'. Sets `suspendedAt`, clears `approvedAt`.
+  - **Auth:** Admin Bearer Token required.
+
+- **NEW: `POST /api/admin/apps/:id/reactivate` (Reactivate a suspended app):**
+  - **Action:** Changes status from 'suspended' to 'active'. Sets `approvedAt`, clears `suspendedAt`, and `rejectionReason`. **Re-generates the mobileconfig profile.**
+  - **Auth:** Admin Bearer Token required.
+
+**Backend System Notes:**
+
+- **App Scanning (`src/services/scanner.js`):**
+  - Initial app scan (on submission) leaves app status as 'pending'. Status changes are via explicit admin actions.
+  - `scanApp` service attempts to add a `details` object to `scanResult`.
+
+- **Profile Generation (`src/services/profileGenerator.js`):**
+  - Corrected `PrecomposedIcon` key in `.mobileconfig` payload.
+  - Icon data passed as raw `Buffer` to `plist` library.
+  - `IgnoreManifestScope: true` included for better PWA fullscreen behavior.
+  - Stricter icon fetching with timeout.
+
+- **Database (`src/config/database.js`):**
+  - `deleteProfile` method added for complete app/profile removal. (This is used by the `DELETE /api/admin/apps/:id` endpoint).
+
 ### Monitoring
 
 1. Server health:

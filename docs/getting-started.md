@@ -35,6 +35,29 @@ This guide will help you get up and running with Crossloadr, whether you're a de
    nano .env
    ```
 
+   This `.env` file is for the backend server. 
+
+   **Frontend API Configuration (Optional):**
+
+   The frontend application (located in the `frontend/` directory) can connect to a different API backend if needed. To configure this:
+   1. Navigate to the `frontend/` directory.
+   2. Create a `.env` file by copying `frontend/.env.example` (if it exists, otherwise create a new `.env` file).
+      ```bash
+      cd frontend
+      # cp .env.example .env  OR touch .env
+      ```
+   3. Add the following line to your `frontend/.env` file, replacing the URL with your API's base URL:
+      ```env
+      VITE_APP_API_BASE_URL=http://localhost:3000
+      ```
+   4. If this variable is not set, the frontend will default to `https://crossapi.nodemixaholic.com`.
+   5. After setting this, you will need to restart the frontend development server if it is running.
+      ```bash
+      # If you were in the root directory, navigate back
+      # cd .. 
+      # Then restart the main dev process if you were running it, or restart the frontend dev server specifically.
+      ```
+
 4. **Initialize Database**
    ```bash
    # Create data directory
