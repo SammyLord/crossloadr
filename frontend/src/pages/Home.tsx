@@ -10,6 +10,7 @@ export default function Home() {
       <Box
         sx={{
           bgcolor: 'primary.main',
+          bg: 'hero-image.svg',
           color: 'primary.contrastText',
           py: 8,
           mb: 6
@@ -43,20 +44,6 @@ export default function Home() {
                   Submit Your App
                 </Button>
               </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Box
-                component="img"
-                src="/hero-image.svg"
-                alt="CrossLoadr Hero"
-                sx={{
-                  width: '100%',
-                  maxWidth: 500,
-                  height: 'auto',
-                  display: 'block',
-                  margin: '0 auto'
-                }}
-              />
             </Grid>
           </Grid>
         </Container>
