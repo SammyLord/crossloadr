@@ -131,7 +131,7 @@ export default function AppDetails() {
 
   const handleInstall = async () => {
     try {
-      window.location.href = `/api/apps/${id}/profile`;
+      window.location.href = `${import.meta.env.VITE_APP_API_BASE_URL || 'https://crossapi.nodemixaholic.com'}/api/apps/${id}/profile`;
       toast.success('Installation profile downloaded');
     } catch (error) {
       toast.error('Failed to download installation profile');
