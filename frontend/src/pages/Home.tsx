@@ -9,7 +9,7 @@ export default function Home() {
       {/* Hero Section */}
       <Box
         sx={{
-          bg: 'hero-image.svg',
+          bgcolor: 'primary.main',
           color: 'primary.contrastText',
           py: 8,
           mb: 6
